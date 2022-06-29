@@ -1,6 +1,19 @@
 <?php
 
     session_start();
+    if($_SESSION['Auth'] == false){
+        echo <<< EOT
+            <html>
+                <body>
+                    <script>
+                        alert("auth error");
+                        window.location.replace("../../index.php");
+                    </script>
+                </body>
+            </html>
+        EOT;
+    }
+
     $storename =  $_GET['storename'];
     $username = $_SESSION['username'];
 
@@ -12,8 +25,21 @@
     $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
     $delivery_fee = 0;
-    if($_GET['type'] == "Delivery")
-        $delivery_fee += 19;
+    if($_GET['type'] == "Delivery"){
+        $stmt = $conn->prepare("SELECT location FROM store where name = '$storename'");
+        $stmt->execute();
+        $store_location = $stmt->fetchAll(PDO::FETCH_CLASS)[0]->location;   
+
+        $stmt = $conn->prepare("SELECT ST_Distance_Sphere('$store_location', Location) as distance FROM users WHERE username = '$username'");
+        $stmt->execute();
+        $rows = $stmt->fetchAll(PDO::FETCH_CLASS);
+        $distance =  $rows[0]->distance;
+
+        $delivery_fee = round($distance / 1000);
+        if($delivery_fee < 10)
+            $delivery_fee = 10;
+    }
+        
 
     $stmt = $conn->prepare("SELECT wallet_balance FROM users WHERE username = '$username'");
     $stmt->execute();

@@ -1,12 +1,7 @@
 <?php
 
     session_start();
-    if(!isset($_SESSION['Auth']))
-        $auth = false;
-    if($_SESSION['Auth'] == false)
-        $auth = false;
-
-    if($auth == false){
+    if($_SESSION['Auth'] == false){
         echo <<< EOT
             <html>
                 <body>

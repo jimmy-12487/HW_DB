@@ -3,12 +3,7 @@
     $storename =  $_GET['storename'];
     $username = $_SESSION['username'];
 
-    if(!isset($_SESSION['Auth']))
-        $auth = false;
-    if($_SESSION['Auth'] == false)
-        $auth = false;
-
-    if($auth == false){
+    if($_SESSION['Auth'] == false){
         echo <<< EOT
             <html>
                 <body>
@@ -29,9 +24,15 @@
     $conn = new PDO("mysql:host=$dbservername; dbname=$dbname;", $dbusername, $dbpassword);
     $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-    $stmt = $conn->prepare("SELECT wallet_balance FROM users WHERE username = '$username'");
+    $stmt = $conn->prepare("SELECT location FROM store where name = '$storename'");
     $stmt->execute();
-    $wallet_balance = $stmt->fetchAll(PDO::FETCH_CLASS)[0]->wallet_balance;
+    $store_location = $stmt->fetchAll(PDO::FETCH_CLASS)[0]->location;
+    
+    $stmt = $conn->prepare("SELECT wallet_balance, ST_Distance_Sphere( '$store_location', Location) as distance FROM users WHERE username = '$username'");
+    $stmt->execute();
+    $rows = $stmt->fetchAll(PDO::FETCH_CLASS);
+    $wallet_balance = $rows[0]->wallet_balance;
+    $distance =  $rows[0]->distance;
 
     $stmt = $conn->prepare("SELECT dish_name
                             FROM dish
@@ -49,8 +50,14 @@
     $total = 0;
 
     $delivery_fee = 0;
-    if($_GET['type'] == 'Delivery')
-        $delivery_fee += 19;
+
+    if($_GET['type'] == 'Delivery'){
+        $delivery_fee = round($distance / 1000);
+        if($delivery_fee < 10)
+            $delivery_fee = 10;
+    }
+    
+    $total += $delivery_fee;
     
     try {
         foreach($rows as $row){
@@ -89,15 +96,22 @@
                 $stmt = $conn->prepare("INSERT INTO order_detail(OID, foodname, price, amount)
                                         VALUES($OID, '$dish_name', $price, $amount)");
                 $stmt->execute();
+                $stmt = $conn->prepare("UPDATE dish SET amount = amount - $amount WHERE dish_name = '$dish_name' AND name = '$storename'");
+                $stmt->execute();
             }
         }
-        $stmt = $conn->prepare("INSERT INTO orders(status, start, storename, price, username, OID) 
-                                VALUES('Not Finished', '$date', '$storename', $total, '$username', $OID)");
+        $stmt = $conn->prepare("INSERT INTO orders(status, start, storename, price, username, OID, delievery_fee) 
+                                VALUES('Not Finished', '$date', '$storename', $total, '$username', $OID, $delivery_fee)");
         $stmt->execute();
 
-        $total += $delivery_fee;
 
         $stmt = $conn->prepare("UPDATE users SET wallet_balance = wallet_balance - $total WHERE username = '$username'");
+        $stmt->execute();
+
+        $stmt = $conn->prepare("SELECT username FROM store WHERE name = '$storename'");
+        $stmt->execute();
+        $owner_username = $stmt->fetchAll(PDO::FETCH_CLASS)[0]->username;
+        $stmt = $conn->prepare("UPDATE users SET wallet_balance = wallet_balance + $total WHERE username = '$owner_username'");
         $stmt->execute();
 
         $recode_time = date("Y-m-d H:i:s");

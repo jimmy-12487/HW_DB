@@ -1,11 +1,6 @@
 <?php
     session_start();
-    if(!isset($_SESSION['Auth']))
-        $auth = false;
-    if($_SESSION['Auth'] == false)
-        $auth = false;
-
-    if($auth == false){
+    if($_SESSION['Auth'] == false){
         echo <<< EOT
             <html>
                 <body>
@@ -43,7 +38,7 @@
         $stmt = $conn->prepare("SELECT * FROM orders WHERE status = 'Not Finished' and storename = '$storename'");
     else if ($status == "Cancel")
         $stmt = $conn->prepare("SELECT * FROM orders WHERE status = 'Cancel' and storename = '$storename'");
-     $stmt->execute();
+    $stmt->execute();
     $rows = $stmt->fetchAll(PDO::FETCH_CLASS);
     
 
@@ -73,13 +68,19 @@
     function show_order($rows, $result){
         foreach ($rows as $row) {
             $result = $result . '
-                <tr>
+                <tr>';
+            if($row->status == "Not Finished")
+                $result = $result . "<td><input type='checkbox' id=order$row->OID name='checkbox2[]' value='$row->OID'></td>";
+            else
+                $result = $result . "<td></td>";
+            
+            $result = $result . '
                     <td> ' . $row->OID .  '</td>
                     <td> ' . $row->status .'</td>
                     <td> ' . $row->start .'</td>
                     <td> ' . $row->end .  '</td>
                     <td> ' . $row->storename.' </td>
-                    <td> ' . $row->price .'</td>
+                    <td> ' . $row->price + $row->delievery_fee .'</td>
                     <td> <button type = "button" class="btn btn-info " data-toggle="modal" data-target="#order' . $row->OID. '"> details</button></td>
                 ';
             if ($row->status == "Not Finished"){
@@ -97,7 +98,10 @@
     function show_detail($rows, $result, $conn){
         foreach ($rows as $row) {
             $total = 0;
-            $delivery_free = 19;
+            $stmt = $conn->prepare("SELECT delievery_fee FROM orders WHERE OID = $row->OID");
+            $stmt->execute();
+            $delievery_fee = $stmt->fetchAll(PDO::FETCH_CLASS)[0]->delievery_fee;
+            var_dump($delievery_fee);
             $result = $result . '
                 <div class = "modal fade" id = "order' . $row->OID . '" data-backdrop="static" tabindex="-1" role="dialog" aria-labelledby="staticBackdropLabel" aria-hidden="true">
                     <div class="modal-dialog">
@@ -126,7 +130,8 @@
             $detail_rows = $stmt->fetchAll(PDO::FETCH_CLASS);
     
             foreach($detail_rows as $detail_row){
-                $stmt = $conn->prepare("SELECT picture FROM dish WHERE name = '$row->storename' AND dish_name = '$detail_row->foodname' ");
+                $tmp_foodname = str_replace(" ", "_", $detail_row->foodname);
+                $stmt = $conn->prepare("SELECT picture FROM dish WHERE name = '$row->storename' AND dish_name = '$tmp_foodname' ");
                 $stmt->execute();
                 $tmp = $stmt->fetchAll(PDO::FETCH_CLASS);
                 $picture = $tmp[0]->picture;
@@ -149,8 +154,8 @@
                             </div>
                             <div class="modal-footer"> 
                                 subtotal : $ ' . $total . ' <br>
-                                delivery free : $' . $delivery_free . ' <br>
-                                total price : $ ' . $total + $delivery_free . ' <br>
+                                delievery_fee : $' . $delievery_fee . ' <br>
+                                total price : $ ' . $total + $delievery_fee . ' <br>
                                 <button type="button" class="btn btn-default" data-dismiss="modal"> Cancel </button>
                             </div>
                         </div>

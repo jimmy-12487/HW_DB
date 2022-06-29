@@ -56,7 +56,7 @@
                         </div>
                         <div class="u-form-group u-form-name">
                           <label for="name-3f87" class="u-label">Password</label>
-                          <input type="text" placeholder="Enter your Password" id="name-3f87" name="Password" class="u-border-1 u-border-grey-30 u-input u-input-rectangle u-radius-8 u-white u-input-2" required="">
+                          <input type="password" placeholder="Enter your Password" id="name-3f87" name="Password" class="u-border-1 u-border-grey-30 u-input u-input-rectangle u-radius-8 u-white u-input-2" required="">
                         </div>
                         <div class="u-align-left u-form-group u-form-submit">
                           

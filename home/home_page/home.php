@@ -1,12 +1,7 @@
 <?php
-    $auth = true;
     session_start();
-    if(!isset($_SESSION['Auth']))
-        $auth = false;
-    if($_SESSION['Auth'] == false)
-        $auth = false;
 
-    if($auth == false){
+    if($_SESSION['Auth'] == false){
         echo <<< EOT
             <html>
                 <body>
@@ -89,7 +84,8 @@
     <div class="container">
         <ul class="nav nav-tabs">
             <li class = "active" ><a href="#home">Home</a></li>
-            <li><a href = "#menu1" >shop</a></li>
+            <li><a href = "#menu1" >Shop</a></li>
+            <li><a href = '#MyOrder'>My Order</a></li>
             <li><a href = "#ShopOrder"> Shop Order </a></li>
             <li><a href = "#TransactionRecord">Transaction Record</a></li>
             <li><a href = "../../index.php">Logout</a></li>
@@ -468,7 +464,6 @@
                         $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
                         $stmt=$conn->prepare("SELECT * FROM dish WHERE name = :storename");
                         $stmt->execute(array('storename' => $_SESSION['storename']));
-
                         if ($stmt->rowCount() > 0) {
                             $result = $stmt->fetchAll(PDO::FETCH_CLASS);
                             $i = 0;
@@ -481,7 +476,6 @@
                                 $picture = $row->picture;
 
                                 $_SESSION['meal'] = $meal;
-
                                 echo <<< EOT
                                 <tr>
                                     <th scope = "row" >$i</th>
@@ -537,7 +531,208 @@
             </div>
         </div>
     </div>
-          
+    
+    <div id="MyOrder" class="tab-pane fade">
+        <form method = "post">
+            <div class=" row  col-xs-8">
+                <label class="control-label col-sm-1" for="distance">Status</label>
+                <button type="submit" style="margin-left: 18px;"class="btn btn-primary">Search</button>
+                <div class="col-sm-5">
+                    <select class="form-control" id="status", name='status'>
+                        <option>All</option>
+                        <option value="Not Finished">未完成 </option>
+                        <option value="Finished">已完成</option>
+                        <option value='Canceled'>已取消</option>
+                </select>
+                </div>
+            </div>
+        </form>
+            <div class="row">
+                <div class="  col-xs-16">
+                    <table class="table" style=" margin-top: 15px;">
+                        <thead>
+                            <tr>
+                                <th scope="col"></th>
+                                <th scope="col">Order ID</th>
+                                <th scope="col">Status</th>
+                                <th scope="col">Start</th>
+                                <th scope="col">End</th>
+                                <th scope="col">Shop name</th>
+                                <th scope="col">Total Price</th>
+                                <th scope="col">Order Details</th>
+                                <th scope="col">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        <?php
+
+                            if(!isset($_POST['status'])) $status='All';
+                            else $status=$_POST['status'];
+                            if($status=='All'){
+                                $stmt=$conn->prepare("select Count(*) from orders where username=:username");
+                                $stmt->execute(array('username' => $_SESSION['username']));
+                            }
+                            else{
+                                $stmt=$conn->prepare("select Count(*) from orders where username=:username and status=:status");
+                                $stmt->execute(array('username' => $_SESSION['username'], 'status' => $status));
+                            }
+                            $a = array();
+                            if($stmt->fetchColumn()>0){
+                                if($status=='All'){
+                                    $stmt=$conn->prepare("select * from orders where username=:username");
+                                    $stmt->execute(array('username' => $_SESSION['username']));
+                                }
+                                else{
+                                    $stmt=$conn->prepare("select * from orders where username=:username and status=:status");
+                                    $stmt->execute(array('username' => $_SESSION['username'], 'status' => $status));
+                                }
+                                $result=$stmt->fetchAll();
+                                $i=0;
+
+                                foreach ($result as $row){
+                                    $i += 1;
+                                    $nstatus=$row['status'];
+                                    $start = $row['start'];
+                                    $end = $row['end'];
+                                    $shop = $row['storename'];
+                                    $price = $row['price'];
+                                    $OID = $row['OID'];
+                                    $delievery_fee = $row['delievery_fee'];
+                                    $total = $price + $delievery_fee;
+                                    array_push($a, array($shop, $OID));
+                                    echo '<tr>';
+
+                                    
+                                    if($nstatus == "Not Finished")
+                                        echo "<td><input type='checkbox' id=$i.$OID name='checkbox1[]' value='$OID'></td>";
+                                    else
+                                        echo "<td></td>";
+                                    echo <<<EOT
+                                    <th scope="row">$i</th>
+                                    <td>$nstatus</td>
+                                    <td>$start</td>
+                                    <td>$end</td>
+                                    <td>$shop</td>
+                                    <td>$total</td>
+                                    <td>  <button type="button" class="btn btn-info " data-toggle="modal" data-target="#$shop$OID">Open menu</button></td>
+                                    EOT;
+                                    if($nstatus=="Not Finished"){
+                                        echo <<<EOT
+                                        <form action ="../my_order_page/cancel.php" method="post">
+                                        <input name="cancel" type="hidden" value=$OID>
+                                        <td><input type="submit" class="btn btn-danger" id = "cancel" value="Cancel" onclick="return confirm('Are you sure to cancel the order?');"></td>
+                                        </form>
+                                        EOT;
+                                    }
+                                    echo '</tr>';
+                                }
+                            }
+                        ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <button type="button" class="btn btn-danger" id='cancelbtn' >Cancel selected order</button>
+            <script>
+                $("#cancelbtn").click(function(){
+                    var total_checked = document.querySelectorAll('input[name="checkbox1[]"]:checked');
+                    var checked=[];
+
+                    if(total_checked.length == 0) 
+                        alert('No order is checked');
+                    else{
+                        for (var i = 0; i < total_checked.length; i++)
+                            checked.push(total_checked[i].value);
+                                
+                        $.ajax(
+                            {
+                                type:"POST",
+                                url: "../my_order_page/allcancel.php",
+                                data: {'OID' : checked},
+                                success: function(results){
+                                    alert(results);
+                                },
+                                complete : function(){
+                                    window.location.replace("../home_page/home.php");
+                                }
+                            }
+                        );
+                    }
+
+                });
+            </script>
+            
+            <?php    
+                for($i=0; $i<sizeof($a); $i++){
+                    $shop = $a[$i][0];
+                    $oid = $a[$i][1];
+                    echo <<<EOT
+                    <div class="modal fade" id="$shop$oid"  data-backdrop="static" tabindex="-1" role="dialog" aria-labelledby="staticBackdropLabel" aria-hidden="true">
+                        <div class="modal-dialog">
+                        <!-- Modal content-->
+                        <div class="modal-content">
+                            <div class="modal-header">
+                            <button type="button" class="close" data-dismiss="modal">&times;</button>
+                            <h4 class="modal-title">Order</h4>
+                            </div>
+                            <div class="modal-body">
+                            <div class="row">
+                            <div class="  col-xs-12">
+                                <table class="table" style=" margin-top: 15px;">
+                                    <thead>
+                                        <tr>
+                                            <th scope="col">Picture</th>
+                                            <th scope="col">meal name</th>
+                                            <th scope="col">price</th>
+                                            <th scope="col">Order Quantity</th>
+                                        </tr>
+                                    </thead>
+                    EOT;
+                    $stmt=$conn->prepare("select * from order_detail where OID=:oid");
+                    $stmt->execute(array('oid' => $oid));
+                    $result=$stmt->fetchAll();
+                    $sum=0;
+                    foreach($result as $srow){
+                        $foodname = $srow['foodname'];
+                        $price = $srow['price'];
+                        $quantity = $srow['amount'];
+                        $stmt=$conn->prepare("select picture from dish where dish_name=:food");
+                        $stmt->execute(array('food' => $foodname));
+                        $result2 = $stmt->fetch();
+                        $src = $result2['picture'];
+                        $sum += $quantity * $price;
+                        echo '<tr>';
+                        echo '<td><img src = "data:png;base64, ' . $src . '"/ width="100" height="100" ></td>';
+                        echo '<td>'.$foodname.'</td>';
+                        echo '<td>'.$price.'</td>';
+                        echo '<td>'.$quantity.'</td>';
+                        echo '</tr>';
+                    }
+                    $stmt=$conn->prepare("select delievery_fee from orders where OID=:oid");
+                    $stmt->execute(array('oid' => $oid));
+                    $fee = $stmt->fetchAll(PDO::FETCH_CLASS)[0]->delievery_fee;
+                    $f = $sum + $fee;
+                    echo <<<EOT
+                                <tbody>
+                                </tbody>
+                                </table>
+                            </div>
+                            </div>
+                        <div style="text-align:right;"><font size=4>Subtotal: $$sum</font>
+                        <br>
+                        <font size=2>Delivery fee: $$fee</font>
+                        <br><br>
+                        <font size=4>Total Price: $$f</font></div>
+                        </div>
+                        
+                      </div>
+                    </div>
+                  </div>
+                  EOT;
+                }
+            ?>
+    </div>
+
     <div id="ShopOrder" class="tab-pane fade">
         Status  
         <select id = "query_status" style = "margin-left : 50px">
@@ -572,6 +767,7 @@
                 <table class = "table">
                     <thead>
                         <tr>
+                            <th scope="col"></th>
                             <th scope="col">OID</th>    
                             <th scope="col">Status</th>
                             <th scope="col">Start</th>
@@ -588,6 +784,65 @@
                 <div id = "scripts"> </div>
             </div>
         </div>
+        <button type="button" class="btn btn-danger" id='cancelbtn_shop' >Cancel selected order</button>
+        <button type="button" class="btn btn-primary" id='donebtn_shop'> Finish selected order</button>
+        <script>
+            $("#cancelbtn_shop").click(function(){
+                var total_checked = document.querySelectorAll('input[name="checkbox2[]"]:checked');
+                var checked=[];
+
+                if(total_checked.length == 0) 
+                    alert('No order is checked');
+                else{
+                    for (var i = 0; i < total_checked.length; i++)
+                        checked.push(total_checked[i].value);
+                            
+                    $.ajax(
+                        {
+                            type:"POST",
+                            url: "../shop_order_page/allcancel.php",
+                            data: {'OID' : checked},
+                            success : function(msg){
+                                alert(msg);
+                            },
+                            complete : function(){
+                                window.location.replace("../home_page/home.php");
+                            }
+                        }
+                    );
+                }
+
+            });
+        </script>
+        <script>
+            $("#donebtn_shop").click(function(){
+                var total_checked = document.querySelectorAll('input[name="checkbox2[]"]:checked');
+                var checked=[];
+
+                if(total_checked.length == 0) 
+                    alert('No order is checked');
+                else{
+                    for (var i = 0; i < total_checked.length; i++)
+                        checked.push(total_checked[i].value);
+                            
+                    $.ajax(
+                        {
+                            type:"POST",
+                            url: "../shop_order_page/alldone.php",
+                            data: {'OID' : checked},
+                            success : function(msg){
+                                alert(msg);
+                            },
+                            complete : function(){
+                                window.location.replace("../home_page/home.php");
+                            }
+                        }
+                    );
+                }
+
+            });
+        </script>
+        
     </div>
 
     <div id="TransactionRecord" class="tab-pane fade">
@@ -629,7 +884,6 @@
                 </table>
             </div>
         </div>
-    </div>
     </div>
 
 
